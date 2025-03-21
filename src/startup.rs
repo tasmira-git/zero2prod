@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{confirm, health_check, subscriptions}
+    routes::{confirm, health_check, publish_newsletter, subscriptions}
 };
 use tracing_actix_web::TracingLogger;
 
@@ -70,6 +70,7 @@ pub fn run(
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscriptions))
             .route("subscriptions/confirm", web::get().to(confirm))
+            .route("/newsletters", web::post().to(publish_newsletter))
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
             .app_data(base_url.clone())

@@ -1,4 +1,4 @@
-FROM rust:1.83.0 AS builder
+FROM rust:1.85 AS builder
 
 WORKDIR /app
 RUN apt update && apt install lld clang -y

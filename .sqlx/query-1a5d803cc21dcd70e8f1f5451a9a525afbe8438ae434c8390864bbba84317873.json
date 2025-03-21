@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into subscription_tokens (subscription_token, subscription_id)\n        values ($1, $2)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1a5d803cc21dcd70e8f1f5451a9a525afbe8438ae434c8390864bbba84317873"
+}
