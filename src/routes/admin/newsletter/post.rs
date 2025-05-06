@@ -1,62 +1,44 @@
-use actix_web::{web, HttpResponse, ResponseError};
+use actix_web::{web, HttpResponse};
+use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
 use sqlx::PgPool;
-
-use crate::{domain::SubscriberEmail, email_client::EmailClient};
+use crate::{authentication::UserId, domain::SubscriberEmail, email_client::EmailClient, utils::{e500, see_other}};
 
 
 #[derive(serde::Deserialize)]
-pub struct BodyData {
-    pub title: String,
-    pub content: Content,
+pub struct FormData {
+    title: String,
+    text_content: String,
+    html_content: String,
 }
 
-#[derive(serde::Deserialize)]
-pub struct Content {
-    pub text: String,
-    pub html: String,
-}
-
-pub struct ConfirmedSubscriber {
-    email: SubscriberEmail,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum PublishError {
-    #[error(transparent)]
-    UnexpectedError(#[from] anyhow::Error),
-}
-
-impl ResponseError for PublishError {
-    fn status_code(&self) -> actix_web::http::StatusCode {
-        match self {
-            PublishError::UnexpectedError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR, 
-        }
-    }
-}
-    
-
-
+#[tracing::instrument(
+    name = "Publish a newsletter",
+    skip(form, pool, email_client, user_id),
+    fields(use_id = %*user_id)
+)]
 pub async fn publish_newsletter(
-    body: web::Json<BodyData>,
+    form: web::Form<FormData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
-) -> Result<HttpResponse, PublishError> {
-    let subscirbers = get_confirmed_subscriber(&pool).await?;
+    user_id: web::ReqData<UserId>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let subscirbers = get_confirmed_subscriber(&pool).await.map_err(e500)?;
     for subscriber in subscirbers {
         match subscriber {
             Ok(subscriber) => {
                 email_client
                     .send_email(
                         &subscriber.email,
-                        &body.title,
-                        &body.content.text,
-                        &body.content.html
+                        &form.title,
+                        &form.text_content,
+                        &form.html_content,
                     )
                     .await
                     .with_context(|| {
                         format!("Failed to send email to {}", subscriber.email)
-                    })?;
+                    })
+                    .map_err(e500)?;
             }
             Err(err) => {
                 tracing::warn!("Failed to send email to subscriber: {:?}", err);
@@ -64,7 +46,12 @@ pub async fn publish_newsletter(
             
         }
     }
-    Ok(HttpResponse::Ok().finish())
+    FlashMessage::info("The newsletter issue has been published!").send();
+    Ok(see_other("/admin/newsletter"))
+}
+
+struct ConfirmedSubscriber {
+    email: SubscriberEmail,
 }
 
 #[tracing::instrument(
